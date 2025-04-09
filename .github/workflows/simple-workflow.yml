@@ -33,3 +33,23 @@ jobs:
         id: extract-label
         run: echo "LABEL=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[0].name')" >> $GITHUB_ENV
 
+      - name: Set default version label
+        if: github.event_name == 'push'
+        run: echo "LABEL=patch" >> $GITHUB_ENV
+
+      - name: Increment version in SemVer fashion
+        run: |
+          # Ensure the version is in the format X.Y.Z
+          NEW_VERSION=$(npm version $LABEL --no-git-tag-version | sed 's/^v//' | awk -F. '{print $1"."$2"."$3}')
+          git add package.json
+          git commit -m "[Automation] Updated $LABEL version. New version: $NEW_VERSION"
+          git push origin main
+          echo "new-version=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Create release and trigger publish
+        env:
+          TAG: ${{ env.new-version }}
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
+        run: |
+          gh release create $TAG --generate-notes
+
