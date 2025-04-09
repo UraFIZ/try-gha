@@ -29,33 +29,57 @@ jobs:
             git config user.email "kratser88@gmail.com"
     
       - name: Extract version label
-        if: github.event_name == 'pull_request'
         id: extract-label
-        run: echo "LABEL=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[0].name')" >> $GITHUB_ENV
+        run: |
+            # Extract the first label from the PR (e.g., major, minor, patch)
+            LABEL=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name' | grep -E '^(major|minor|patch)$' | head -1)
+            # Default to patch if no valid semver label is found
+            if [ -z "$LABEL" ]; then
+              LABEL="patch"
+              echo "No valid semver label found, defaulting to 'patch'"
+            fi
+            echo "LABEL=$LABEL" >> $GITHUB_ENV
+            echo "Extracted label: $LABEL"
+      - name: Create version bump branch
+        run: |
+          # Create a new branch for the version bump
+          CURRENT_DATE=$(date +%Y%m%d%H%M%S)
+          BRANCH_NAME="version-bump-${{ env.LABEL }}-$CURRENT_DATE"
+          git checkout -b $BRANCH_NAME
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+    
+      - name: Increment version in SemVer fashion
+        run: |
+          # Calculate new version based on the extracted label
+          NEW_VERSION=$(npm version ${{ env.LABEL }} --no-git-tag-version | sed 's/^v//')
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          
+          # Commit the version change
+          git add package.json package-lock.json || git add package.json yarn.lock || git add package.json
+          git commit -m "[Automation] Bump ${{ env.LABEL }} version to $NEW_VERSION"
 
-      - name: Set default version label
-        if: github.event_name == 'push'
-        run: echo "LABEL=patch" >> $GITHUB_ENV
-
-      - name: Bump version number
+      - name: Push version bump branch
         run: |
-          yarn version --${{ env.LABEL }} --message "[no ci]: Bump ${{ env.LABEL }} version"
-          echo "TAG=$(git describe --tags)" >> $GITHUB_ENV
+          git push --set-upstream origin ${{ env.BRANCH_NAME }}
       
-      - name: Push changes (tags only)
-        run: |
-          git push --tags origin main
-      
-      - name: Create Github release
+      - name: Create version bump PR
         env:
-          GITHUB_TOKEN: ${{ secrets.GHA_TOKEN }}
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
         run: |
-          gh release create ${{ env.TAG }} --generate-notes
-      
-      - name: Publish components to Github package repository
-        run: |
-          npm config set @org:registry https://npm.pkg.github.com
-          yarn publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GHA_TOKEN}}
+          PR_URL=$(gh pr create \
+            --title "[Automation] Version bump to ${{ env.NEW_VERSION }}" \
+            --body "This PR was automatically created to bump the version based on the '${{ env.LABEL }}' label from PR #${{ github.event.pull_request.number }}. 
+            
+            Original PR: #${{ github.event.pull_request.number }}
+            Original PR title: '${{ github.event.pull_request.title }}'
+            
+            Please review and merge to complete the version bump process." \
+            --base main \
+            --head ${{ env.BRANCH_NAME }})
+          
+          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+          echo "Created version bump PR: $PR_URL"
+          
+          # Add a comment to the original PR
+          gh pr comment ${{ github.event.pull_request.number }} --body "Version bump PR created: $PR_URL"
 
