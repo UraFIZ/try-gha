@@ -1,0 +1,11 @@
+{
+  "name": "try-gha",
+  "version": "1.0.0",
+  "description": "A simple project to try GitHub Actions",
+  "main": "script.js",
+  "scripts": {
+    "start": "echo 'No server configured. Open index.html in a browser.'"
+  },
+  "author": "",
+  "license": "MIT"
+}
