@@ -18,7 +18,12 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GHA_TOKEN }}
-      
+          
+      - name: Configure git
+        run: |
+            git config user.name "urafiz"
+            git config user.email "kratser88@gmail.com"
+    
       - name: Extract version from PR title
         id: extract-version
         run: |
