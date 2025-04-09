@@ -82,4 +82,10 @@ jobs:
           
           # Add a comment to the original PR
           gh pr comment ${{ github.event.pull_request.number }} --body "Version bump PR created: $PR_URL"
+      # Add informative comment about next steps
+      - name: Add informative comment to PR
+        env:
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "Version bump PR created: $PR_URL\n\nAfter merging this PR, a tag (v${{ env.NEW_VERSION }}) and release will be automatically created."
 
