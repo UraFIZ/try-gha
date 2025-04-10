@@ -1,4 +1,4 @@
-name: Post-Merge Tag and Release
+name: Post-Merge Release
 
 on:
   pull_request:
@@ -9,8 +9,11 @@ jobs:
   create-tag-and-release:
     runs-on: ubuntu-latest
     # Only run this workflow when a version bump PR is merged
-    if: github.event.pull_request.merged == true && 
-        startsWith(github.event.pull_request.title, '[Automation] Version bump')
+    if: github.event.pull_request.merged == true &&
+        (contains(github.event.pull_request.labels.*.name, 'major') || 
+         contains(github.event.pull_request.labels.*.name, 'minor') ||
+         contains(github.event.pull_request.labels.*.name, 'patch')) &&
+        !contains(github.event.pull_request.labels.*.name, 'do-not-release')
     
     steps:
       - name: Checkout repository
@@ -24,17 +27,12 @@ jobs:
             git config user.name "urafiz"
             git config user.email "kratser88@gmail.com"
     
-      - name: Extract version from PR title
-        id: extract-version
+      - name: Get version from package.json
+        id: get-version
         run: |
-          # Extract version from PR title format: "[Automation] Version bump to X.Y.Z"
-          VERSION=$(echo "${{ github.event.pull_request.title }}" | sed -n 's/.*Version bump to \([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
-          if [ -z "$VERSION" ]; then
-            echo "Failed to extract version from PR title"
-            exit 1
-          fi
+          VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Extracted version: $VERSION"
+          echo "Current version: $VERSION"
       
       - name: Create and push tag
         run: |
@@ -46,6 +44,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GHA_TOKEN }}
         run: |
-          RELEASE_URL=$(gh release create "v${{ env.VERSION }}" --generate-notes)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          
+          RELEASE_URL=$(gh release create "v${{ env.VERSION }}" \
+            --title "Release v${{ env.VERSION }}" \
+            --notes "Release automatically created from PR #$PR_NUMBER: $PR_TITLE" \
+            --generate-notes)
+          
           echo "Created release: $RELEASE_URL"
       
