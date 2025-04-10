@@ -1,0 +1,39 @@
+name: Required Label Check
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+    branches: [main]
+
+jobs:
+  check-required-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for version labels
+        id: check-labels
+        run: |
+          # Get all labels on the PR
+          LABELS=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')
+          echo "PR labels: $LABELS"
+          
+          # Check for presence of required labels
+          if echo "$LABELS" | grep -E '^(major|minor|patch|do-not-release)$'; then
+            echo "Required label found!"
+            echo "HAS_REQUIRED_LABEL=true" >> $GITHUB_ENV
+            echo "Found a required label (major, minor, patch, or do-not-release)"
+            exit 0
+          else
+            echo "No required label found!"
+            echo "HAS_REQUIRED_LABEL=false" >> $GITHUB_ENV
+            echo "Missing required label (major, minor, patch, or do-not-release)"
+            exit 1
+          fi
+      
+      - name: PR status
+        if: always()
+        run: |
+          if [ "${{ env.HAS_REQUIRED_LABEL }}" == "true" ]; then
+            echo "✅ PR has a required version label"
+          else
+            echo "❌ PR is missing a required version label (major, minor, patch, or do-not-release)"
+          fi
