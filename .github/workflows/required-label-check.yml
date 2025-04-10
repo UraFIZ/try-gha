@@ -1,0 +1,30 @@
+name: Required Label Check
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+    branches: [main]
+
+jobs:
+  check-required-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for required labels
+        id: check-labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            console.log('PR labels:', labels);
+            
+            const requiredLabels = ['major', 'minor', 'patch', 'do-not-release'];
+            const hasRequiredLabel = labels.some(label => requiredLabels.includes(label));
+            
+            if (hasRequiredLabel) {
+              console.log('✅ PR has a required version label');
+              return true;
+            } else {
+              console.log('❌ PR is missing a required version label (major, minor, patch, or do-not-release)');
+              core.setFailed('PR is missing a required version label (major, minor, patch, or do-not-release)');
+              return false;
+            }
