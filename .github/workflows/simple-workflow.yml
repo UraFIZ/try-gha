@@ -1,22 +1,20 @@
-name: CI
+name: PR Version Bump
 
 on:
-    pull_request:
-      types: [closed]
-      branches: [main]
+  pull_request:
+    types: [labeled]
 
 jobs:
-  versioning:
+  update-version-in-pr:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true &&
-      !contains(github.event.pull_request.labels.*.name, 'do-not-release') &&
-      !startsWith(github.event.pull_request.title, '[Automation] Version bump')
+    # Only run this on PRs with semver labels
+    if: github.event.label.name == 'major' || github.event.label.name == 'minor' || github.event.label.name == 'patch'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ github.head_ref }}
           token: ${{secrets.GHA_TOKEN}}
 
       - name: Set up Node.js
@@ -29,64 +27,37 @@ jobs:
             git config user.name "urafiz"
             git config user.email "kratser88@gmail.com"
     
-      - name: Extract version label
-        id: extract-label
+      - name: Increment version in package.json
         run: |
-            # Extract the first label from the PR (e.g., major, minor, patch)
-            LABEL=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name' | grep -E '^(major|minor|patch)$' | head -1)
-            # Default to patch if no valid semver label is found
-            if [ -z "$LABEL" ]; then
-              LABEL="patch"
-              echo "No valid semver label found, defaulting to 'patch'"
-            fi
-            echo "LABEL=$LABEL" >> $GITHUB_ENV
-            echo "Extracted label: $LABEL"
-      - name: Create version bump branch
-        run: |
-          # Create a new branch for the version bump
-          CURRENT_DATE=$(date +%Y%m%d%H%M%S)
-          BRANCH_NAME="version-bump-${{ env.LABEL }}-$CURRENT_DATE"
-          git checkout -b $BRANCH_NAME
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-    
-      - name: Increment version in SemVer fashion
-        run: |
-          # Calculate new version based on the extracted label
-          NEW_VERSION=$(npm version ${{ env.LABEL }} --no-git-tag-version | sed 's/^v//')
+          # Extract the semver label
+          LABEL="${{ github.event.label.name }}"
+          echo "Using label: $LABEL"
+          
+          # Get current version before bump
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Bump version according to label
+          NEW_VERSION=$(npm version $LABEL --no-git-tag-version | sed 's/^v//')
+          echo "New version: $NEW_VERSION"
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           
-          # Commit the version change
-          git add package.json package-lock.json || git add package.json yarn.lock || git add package.json
-          git commit -m "[Automation] Bump ${{ env.LABEL }} version to $NEW_VERSION"
+          # Stage the changes
+          git add package.json
 
-      - name: Push version bump branch
+      - name: Commit and push version change
         run: |
-          git push --set-upstream origin ${{ env.BRANCH_NAME }}
-      
-      - name: Create version bump PR
+          # Create commit with version bump
+          git commit -m "[Automation] Bump version to ${{ env.NEW_VERSION }} based on '${{ github.event.label.name }}' label"
+          
+          # Push to the same PR branch
+          git push origin HEAD:${{ github.head_ref }}
+        
+      - name: Add PR comment
         env:
           GH_TOKEN: ${{ secrets.GHA_TOKEN }}
         run: |
-          PR_URL=$(gh pr create \
-            --title "[Automation] Version bump to ${{ env.NEW_VERSION }}" \
-            --body "This PR was automatically created to bump the version based on the '${{ env.LABEL }}' label from PR #${{ github.event.pull_request.number }}. 
-            
-            Original PR: #${{ github.event.pull_request.number }}
-            Original PR title: '${{ github.event.pull_request.title }}'
-            
-            Please review and merge to complete the version bump process." \
-            --base main \
-            --head ${{ env.BRANCH_NAME }})
-          
-          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
-          echo "Created version bump PR: $PR_URL"
-          
-          # Add a comment to the original PR
-          gh pr comment ${{ github.event.pull_request.number }} --body "Version bump PR created: $PR_URL"
-      # Add informative comment about next steps
-      - name: Add informative comment to PR
-        env:
-          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
-        run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "Version bump PR created: $PR_URL\n\nAfter merging this PR, a tag (v${{ env.NEW_VERSION }}) and release will be automatically created."
+          gh pr comment ${{ github.event.pull_request.number }} -b "✅ Version bumped to **v${{ env.NEW_VERSION }}** in this PR based on the '${{ github.event.label.name }}' label.
+
+          The version change has been committed to this PR. Upon merge, a release tag will be automatically created."
 
