@@ -17,7 +17,7 @@ jobs:
           echo "PR labels: $LABELS"
           
           # Check for presence of required labels
-          if echo "$LABELS" | grep -E '^(major|minor|patch|do-not-release)$'; then
+          if echo "$LABELS" | grep -qE '(major|minor|patch|do-not-release)'; then
             echo "Required label found!"
             echo "HAS_REQUIRED_LABEL=true" >> $GITHUB_ENV
             echo "Found a required label (major, minor, patch, or do-not-release)"
