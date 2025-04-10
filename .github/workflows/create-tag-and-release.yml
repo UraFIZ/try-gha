@@ -8,12 +8,9 @@ on:
 jobs:
   create-tag-and-release:
     runs-on: ubuntu-latest
-    # Only run this workflow when a version bump PR is merged
-    if: github.event.pull_request.merged == true &&
-        (contains(github.event.pull_request.labels.*.name, 'major') || 
-         contains(github.event.pull_request.labels.*.name, 'minor') ||
-         contains(github.event.pull_request.labels.*.name, 'patch')) &&
-        !contains(github.event.pull_request.labels.*.name, 'do-not-release')
+    if: |
+      github.event.pull_request.merged == true &&
+      !contains(github.event.pull_request.labels.*.name, 'do-not-release')
     
     steps:
       - name: Checkout repository
