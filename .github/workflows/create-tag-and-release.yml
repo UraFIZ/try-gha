@@ -36,6 +36,9 @@ jobs:
           git tag -a "v${{ env.VERSION }}" -m "Release v${{ env.VERSION }}"
           git push origin "v${{ env.VERSION }}"
           echo "Created and pushed tag v${{ env.VERSION }}"
+          
+      - name: Install GH CLI
+        uses: dev-hanz-ops/install-gh-cli-action@v0.2.1
       
       - name: Create GitHub release
         env:
