@@ -24,12 +24,21 @@ jobs:
             git config user.name "urafiz"
             git config user.email "kratser88@gmail.com"
     
-      - name: Get version from package.json
-        id: get-version
+      - name: Extract version from PR title or package.json
+        id: extract-version
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          # Try to extract version from PR title format: "[Automation] Version bump to X.Y.Z"
+          VERSION=$(echo "${{ github.event.pull_request.title }}" | sed -n 's/.*Version bump to \([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
+          if [ -z "$VERSION" ]; then
+            echo "Could not extract version from PR title, falling back to package.json"
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Failed to extract version from both PR title and package.json"
+            exit 1
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Current version: $VERSION"
+          echo "Extracted version: $VERSION"
       
       - name: Create and push tag
         run: |
