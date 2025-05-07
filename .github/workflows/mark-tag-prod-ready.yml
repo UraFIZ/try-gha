@@ -1,0 +1,53 @@
+name: "✅ Mark Tag Prod Ready"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name to be deployed"
+        required: true
+        type: string
+
+env:
+  TAG_NAME: ${{ github.event.inputs.tag }}
+
+run-name: ${{ github.event.inputs.tag }}
+
+jobs:
+  mark-production-ready:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GHA_TOKEN }}
+
+      - name: Validate tag exists
+        id: check-tag
+        env:
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
+        run: |
+          if ! gh release view ${{ env.TAG_NAME }} &>/dev/null; then
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Error: Release for tag ${{ env.TAG_NAME }} does not exist!"
+          else
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release for tag ${{ env.TAG_NAME }} exists, proceeding..."
+          fi
+
+      - name: Exit if tag doesn't exist
+        if: steps.check-tag.outputs.exists != 'true'
+        run: |
+          echo "Tag ${{ env.TAG_NAME }} does not exist on GitHub. Aborting."
+          exit 1
+          
+      - name: Mark as production ready
+        env:
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
+        run: |
+          gh release edit ${{ env.TAG_NAME }} \
+            --title "Production Release ${{ env.TAG_NAME }}" \
+            --notes "This release has been verified and deployed to the Production environment." \
+            --latest
+          echo "Release ${{ env.TAG_NAME }} marked as Production Release (marked as latest)"
