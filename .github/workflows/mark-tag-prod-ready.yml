@@ -46,8 +46,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GHA_TOKEN }}
         run: |
+          # First, remove the prerelease status
           gh release edit ${{ env.TAG_NAME }} \
             --title "Production Release ${{ env.TAG_NAME }}" \
             --notes "This release has been verified and deployed to the Production environment." \
-            --latest
+            --prerelease=false
+          
+          # Then, mark as latest in a separate command
+          gh release edit ${{ env.TAG_NAME }} --latest
+          
           echo "Release ${{ env.TAG_NAME }} marked as Production Release (marked as latest)"
