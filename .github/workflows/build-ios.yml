@@ -1,0 +1,111 @@
+name: Build IOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref_name:
+        description: "Branch/Tag to build"
+        required: true
+        type: string
+        default: "main"
+      environment:
+        description: "Target environment (staging, prod or demo)"
+        type: choice
+        options:
+          - staging
+          - prod
+          - demo
+        default: staging
+      client1:
+        type: boolean
+        default: false
+      client2:
+        type: boolean
+        default: false
+      client3:
+        type: boolean
+        default: false
+      client4:
+        type: boolean
+        default: false
+
+jobs:
+  validate-production-release:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.environment == 'prod' }}
+    steps:
+      - name: Check if ref is a tag
+        id: check-tag-format
+        run: |
+          REF=${{ github.event.inputs.ref_name }}
+          if [[ $REF == v* ]]; then
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+            echo "Ref $REF is a tag"
+          else
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+            echo "Ref $REF is not a tag"
+            echo "::error::Production releases must use a tag! Please use a tag instead of a branch."
+            exit 1
+          fi
+
+      - name: Check if tag is verified for production
+        if: steps.check-tag-format.outputs.is_tag == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
+          TAG: ${{ github.event.inputs.ref_name }}
+        run: |
+          # Get release information
+          release_info=$(gh api repos/${{ github.repository }}/releases/tags/$TAG -q '{"is_prerelease": .prerelease, "name": .name}')
+          is_prerelease=$(echo "$release_info" | jq -r .is_prerelease)
+          release_name=$(echo "$release_info" | jq -r .name)
+          
+          if [[ "$is_prerelease" == "true" ]]; then
+            echo "::error::This tag ($TAG) is still marked as a pre-release! Please verify and mark as production-ready first."
+            exit 1
+          fi
+          
+          if [[ "$release_name" != "Production Release"* ]]; then
+            echo "::error::This tag ($TAG) has not been verified for production! Release name should start with 'Production Release'."
+            exit 1
+          fi
+          
+          echo "Tag $TAG is verified for production. Proceeding with build."
+
+  ios-build:
+    needs: validate-production-release
+    if: ${{ always() && (needs.validate-production-release.result == 'success' || inputs.environment != 'prod') }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        client: ["client1", "client2", "client3", "client4"]
+        include:
+          - client: "client1"
+            run_if: ${{ inputs.client1 }}
+          - client: "client2"
+            run_if: ${{ inputs.client2 }}
+          - client: "client3"
+            run_if: ${{ inputs.client3 }}
+          - client: "client4"
+            run_if: ${{ inputs.client4 }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref_name }}
+          fetch-depth: 0
+          token: ${{ secrets.GHA_TOKEN }}
+
+      - name: Determine app version
+        id: generate_version_name
+        run: |
+          VERSION_NAME=$(jq -r '.version' package.json)
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
+
+      - name: Build for ${{ matrix.client }} client on ${{ inputs.environment }}
+        if: ${{ matrix.run_if }}
+        run: |
+          echo "Building ${{ matrix.client }} for ${{ inputs.environment }} environment with version ${{ steps.generate_version_name.outputs.VERSION_NAME }}"
+          # Actual build logic would be here
+          echo "Build completed successfully"

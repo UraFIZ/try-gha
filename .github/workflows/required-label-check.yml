@@ -7,7 +7,7 @@ on:
 
 jobs:
   check-required-labels:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Check for required labels
         id: check-labels

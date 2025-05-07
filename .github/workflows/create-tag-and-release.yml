@@ -7,7 +7,7 @@ on:
 
 jobs:
   create-tag-and-release:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: |
       github.event.pull_request.merged == true &&
       !contains(github.event.pull_request.labels.*.name, 'do-not-release')
@@ -45,9 +45,9 @@ jobs:
           PR_TITLE="${{ github.event.pull_request.title }}"
           
           RELEASE_URL=$(gh release create "v${{ env.VERSION }}" \
-            --title "Release v${{ env.VERSION }}" \
-            --notes "Release automatically created from PR #$PR_NUMBER: $PR_TITLE" \
-            --generate-notes)
+            --title "Pre-release v${{ env.VERSION }}" \
+            --notes "Pre-release automatically created from PR #$PR_NUMBER: $PR_TITLE. Awaiting staging and production verification." \
+            --generate-notes \
+            --prerelease)
           
-          echo "Created release: $RELEASE_URL"
-      
+          echo "Created pre-release: $RELEASE_URL"
