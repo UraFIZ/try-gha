@@ -94,6 +94,7 @@ jobs:
           ---
           *This PR was created by the Create Version Bump PR workflow*" \
             --head ${{ env.BRANCH_NAME }} \
-            --base main)
+            --base main \
+            --label "version-bump")
 
           echo "Created bump PR: $PR_URL"
