@@ -30,7 +30,7 @@ jobs:
         run: |
           if ! gh release view ${{ env.TAG_NAME }} &>/dev/null; then
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Error: Release for tag ${{ env.TAG_NAME }} does not exist!"
+            echo "Error: Release for the tag ${{ env.TAG_NAME }} does not exist!"
           else
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "Release for tag ${{ env.TAG_NAME }} exists, proceeding..."
@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "Tag ${{ env.TAG_NAME }} does not exist on GitHub. Aborting."
           exit 1
-          
+
       - name: Mark as production ready
         env:
           GH_TOKEN: ${{ secrets.GHA_TOKEN }}
