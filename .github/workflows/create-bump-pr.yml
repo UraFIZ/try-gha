@@ -77,6 +77,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GHA_TOKEN }}
         run: |
+          # Debug: Check if we can access the repo
+          echo "Testing GitHub CLI access..."
+          gh repo view --json name
+
+          # Debug: Check current branch
+          echo "Current branch: $(git branch --show-current)"
+          echo "Remote branches:"
+          git branch -r
+
+          # Create the PR
+          echo "Creating PR..."
           PR_URL=$(gh pr create \
             --title "[Automation] Bump version to v${{ env.NEW_VERSION }}" \
             --body "🤖 **Automated Version Bump**
@@ -95,6 +106,9 @@ jobs:
           *This PR was created by the Create Version Bump PR workflow*" \
             --head ${{ env.BRANCH_NAME }} \
             --base main \
-            --label "version-bump")
+            --label "do-not-release")
 
           echo "Created bump PR: $PR_URL"
+
+          # Verify PR was created
+          gh pr list --head ${{ env.BRANCH_NAME }}
