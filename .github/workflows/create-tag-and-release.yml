@@ -10,44 +10,44 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event.pull_request.merged == true &&
-      !contains(github.event.pull_request.labels.*.name, 'do-not-release')
-    
+      startsWith(github.event.pull_request.title, '[Automation] Bump version')
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GHA_TOKEN }}
-          
+
       - name: Configure git
         run: |
-            git config user.name "urafiz"
-            git config user.email "kratser88@gmail.com"
-    
+          git config user.name "urafiz"
+          git config user.email "kratser88@gmail.com"
+
       - name: Get version from package.json
         id: get-version
         run: |
           VERSION=$(jq -r .version package.json)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Current version: $VERSION"
-      
+
       - name: Create and push tag
         run: |
           git tag -a "v${{ env.VERSION }}" -m "Release v${{ env.VERSION }}"
           git push origin "v${{ env.VERSION }}"
           echo "Created and pushed tag v${{ env.VERSION }}"
-      
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GHA_TOKEN }}
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
           PR_TITLE="${{ github.event.pull_request.title }}"
-          
+
           RELEASE_URL=$(gh release create "v${{ env.VERSION }}" \
             --title "Pre-release v${{ env.VERSION }}" \
-            --notes "Pre-release automatically created from PR #$PR_NUMBER: $PR_TITLE. Awaiting staging and production verification." \
+            --notes "Pre-release automatically created from $PR_TITLE. Awaiting staging and production verification." \
             --generate-notes \
             --prerelease)
-          
+
           echo "Created pre-release: $RELEASE_URL"
