@@ -1,0 +1,71 @@
+name: PR Semver Label Handler
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  handle-semver-label:
+    runs-on: ubuntu-latest
+    # Only run this on PRs with semver labels
+    if: |
+      github.event.label.name == 'major' ||
+      github.event.label.name == 'minor' ||
+      github.event.label.name == 'patch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GHA_TOKEN }}
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - name: Preview version bump
+        env:
+          GITHUB_LABEL: ${{ github.event.label.name }}
+        run: |
+          # Extract the semver label
+          LABEL="${GITHUB_LABEL}"
+          echo "Using label: $LABEL"
+
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Calculate what the new version would be (without actually bumping)
+          # Create a temporary package.json to calculate new version
+          cp package.json package.json.tmp
+          NEW_VERSION=$(npm version $LABEL --no-git-tag-version | sed 's/^v//')
+          # Restore original package.json
+          mv package.json.tmp package.json
+
+          echo "Preview new version: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Add PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GHA_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          NEW_VERSION: ${{ env.NEW_VERSION }}
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+
+          gh pr comment ${PR_NUMBER} -b "🏷️ **Semver Label Applied: \`${LABEL_NAME}\`**
+
+          When this PR is merged, it will trigger an automated version bump workflow that will:
+
+          1. 📈 Create a new version bump PR with version **v${NEW_VERSION}**
+          2. 🔀 Upon merging the version bump PR, a release tag will be created
+          3. 🚀 A GitHub pre-release will be published automatically
+
+          **Current version:** \`${CURRENT_VERSION}\`
+          **Next version:** \`${NEW_VERSION}\` (${LABEL_NAME} bump)
+
+          ---
+          *No version changes will be made to this PR. The version bump will happen post-merge.*"
